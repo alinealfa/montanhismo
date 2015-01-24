@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <style>
+      html, body, #map-canvas {
+        height: 100%;
+        margin: 0px;
+        padding: 0px
+      }
+      .controls {
+        margin-top: 16px;
+        border: 1px solid transparent;
+        border-radius: 2px 0 0 2px;
+        box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        height: 32px;
+        outline: none;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      }
+
+      #pac-input {
+        background-color: #fff;
+        padding: 0 11px 0 13px;
+        width: 400px;
+        font-family: Roboto;
+        font-size: 15px;
+        font-weight: 300;
+        text-overflow: ellipsis;
+      }
+
+      #pac-input:focus {
+        border-color: #4d90fe;
+        margin-left: -1px;
+        padding-left: 14px;  /* Regular padding-left + 1. */
+        width: 401px;
+      }
+
+      .pac-container {
+        font-family: Roboto;
+      }
+
+      #type-selector {
+        color: #fff;
+        background-color: #4d90fe;
+        padding: 5px 11px 0px 11px;
+      }
+
+      #type-selector label {
+        font-family: Roboto;
+        font-size: 13px;
+        font-weight: 300;
+      }
+}
+
+    </style>
+    <title>Facilitador de Consulta - Meteograma</title>
+    <script src="https://maps.googleapis.com/maps/api/js?v=3.exp&signed_in=true&libraries=places"></script>
+    <script>
+
+	
+	var map;
+	var TILE_SIZE = 256;
+	var centro_inicial = new google.maps.LatLng(-22.948409,-43.157537);
+	var quero_ver = centro_inicial;
+
+
+	function arred (num){
+		return num.toFixed(4);
+	}
+	
+	function arred2 (num){
+		return num.toFixed(2);
+	}
+
+	function bound(value, opt_min, opt_max) {
+	  if (opt_min != null) value = Math.max(value, opt_min);
+	  if (opt_max != null) value = Math.min(value, opt_max);
+	  return value;
+	}
+
+	function degreesToRadians(deg) {
+	  return deg * (Math.PI / 180);
+	}
+
+	function radiansToDegrees(rad) {
+	  return rad / (Math.PI / 180);
+	}
+
+	/** @constructor */
+	function MercatorProjection() {
+	  this.pixelOrigin_ = new google.maps.Point(TILE_SIZE / 2,
+		  TILE_SIZE / 2);
+	  this.pixelsPerLonDegree_ = TILE_SIZE / 360;
+	  this.pixelsPerLonRadian_ = TILE_SIZE / (2 * Math.PI);
+	}
+
+	MercatorProjection.prototype.fromLatLngToPoint = function(latLng,
+		opt_point) {
+	  var me = this;
+	  var point = opt_point || new google.maps.Point(0, 0);
+	  var origin = me.pixelOrigin_;
+
+	  point.x = origin.x + latLng.lng() * me.pixelsPerLonDegree_;
+
+	  var siny = bound(Math.sin(degreesToRadians(latLng.lat())), -0.9999,
+		  0.9999);
+	  point.y = origin.y + 0.5 * Math.log((1 + siny) / (1 - siny)) *
+		  -me.pixelsPerLonRadian_;
+	  return point;
+	};
+
+	MercatorProjection.prototype.fromPointToLatLng = function(point) {
+	  var me = this;
+	  var origin = me.pixelOrigin_;
+	  var lng = (point.x - origin.x) / me.pixelsPerLonDegree_;
+	  var latRadians = (point.y - origin.y) / -me.pixelsPerLonRadian_;
+	  var lat = radiansToDegrees(2 * Math.atan(Math.exp(latRadians)) -
+		  Math.PI / 2);
+	  return new google.maps.LatLng(lat, lng);
+	};
+
+	function createInfoWindowContent() {
+	  var numTiles = 1 << map.getZoom();
+	  var projection = new MercatorProjection();
+	  var worldCoordinate = projection.fromLatLngToPoint(quero_ver);
+	  var pixelCoordinate = new google.maps.Point(
+		  worldCoordinate.x * numTiles,
+		  worldCoordinate.y * numTiles);
+	  var tileCoordinate = new google.maps.Point(
+		  Math.floor(pixelCoordinate.x / TILE_SIZE),
+		  Math.floor(pixelCoordinate.y / TILE_SIZE));
+
+	    var contentString = '<div id="content">'+
+      '<div id="siteNotice">'+
+      '</div>'+
+      '<h1 id="firstHeading" class="firstHeading">Dados do Local</h1>'+
+      '<div id="bodyContent">'+
+      '<b>Latitude e Longitude</b>: ' + arred(quero_ver.lat()) + ', ' + arred(quero_ver.lng()) +
+	  '<br>' +
+	  '<b>Coordenadas Globais</b>: ' + arred(worldCoordinate.x) + ', ' + arred(worldCoordinate.y) + 
+      '<p>' + 
+	  '<a target=\'_blank\' href=\'http://ready.arl.noaa.gov/ready2-bin/main.pl?Lat=' + 
+		arred2(quero_ver.lat()) + '&Lon=' + arred2(quero_ver.lng()) + ' \'>Clique aqui para ver <b>meteograma NOAA</b></a>'+
+	  '</p>'+
+	  'Para consultar dados de outro local, clique com o botao direito no local desejado e tchuk tchuk.<br><br>'+
+	  '<hr><i>Esta interface utiliza a API do Google Maps para facilitar a consulta do meteograma (NOAA); foi publicada como código livre / aberto neste repositório: <a target=\'_blank\' href=\'https://github.com/alinealfa/montanhismo/\'>https://github.com/alinealfa/montanhismo</a></i>'+
+      '</div>'+
+      '</div>';
+	  
+	  return contentString;
+	  
+	}
+
+
+	
+
+function initialize() {
+
+  var markers = [];
+ 
+    var mapOptions = {
+    zoom: 10,
+    center: centro_inicial,
+	mapTypeId: google.maps.MapTypeId.TERRAIN,
+	mapTypeControl: true,
+    mapTypeControlOptions: {
+      style: google.maps.MapTypeControlStyle.DROPDOWN_MENU
+    },
+    zoomControl: true,
+    zoomControlOptions: {
+      style: google.maps.ZoomControlStyle.SMALL
+    },
+	panControl: true,
+	navigationControl: true
+  };
+
+  map = new google.maps.Map(document.getElementById('map-canvas'),
+      mapOptions);
+
+  var coordInfoWindow = new google.maps.InfoWindow();
+  coordInfoWindow.setContent(createInfoWindowContent());
+  coordInfoWindow.setPosition(centro_inicial);
+  coordInfoWindow.open(map);
+
+  
+   google.maps.event.addListener(map, 'rightclick', function(event) {
+		
+	quero_ver = event.latLng;
+    coordInfoWindow.setContent(createInfoWindowContent());
+    coordInfoWindow.setPosition(quero_ver);
+
+    coordInfoWindow.open(map);
+	
+  });
+  
+  
+  
+/*
+  var defaultBounds = new google.maps.LatLngBounds(
+      new google.maps.LatLng(-22.948409,-43.157537),
+      new google.maps.LatLng(-22.958409,-43.167537));
+  map.fitBounds(defaultBounds);
+*/
+  // Create the search box and link it to the UI element.
+  var input = /** @type {HTMLInputElement} */(
+      document.getElementById('pac-input'));
+  map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
+
+  var searchBox = new google.maps.places.SearchBox(
+    /** @type {HTMLInputElement} */(input));
+
+  
+  google.maps.event.addListener(searchBox, 'places_changed', function() {
+    var places = searchBox.getPlaces();
+
+    if (places.length == 0) {
+      return;
+    }
+    for (var i = 0, marker; marker = markers[i]; i++) {
+      marker.setMap(null);
+    }
+    
+    markers = [];
+    var bounds = new google.maps.LatLngBounds();
+    for (var i = 0, place; place = places[i]; i++) {
+      var image = {
+        url: place.icon,
+        size: new google.maps.Size(71, 71),
+        origin: new google.maps.Point(0, 0),
+        anchor: new google.maps.Point(17, 34),
+        scaledSize: new google.maps.Size(25, 25)
+      };
+
+      var marker = new google.maps.Marker({
+        map: map,
+        icon: image,
+        title: place.name,
+        position: place.geometry.location
+      });
+
+      markers.push(marker);
+
+      bounds.extend(place.geometry.location);
+    }
+
+    map.fitBounds(bounds);
+  });
+
+  
+  google.maps.event.addListener(map, 'bounds_changed', function() {
+    var bounds = map.getBounds();
+    searchBox.setBounds(bounds);
+  });
+}
+
+google.maps.event.addDomListener(window, 'load', initialize);
+
+    </script>
+    <style>
+      #target {
+        width: 345px;
+      }
+    </style>
+  </head>
+  <body>
+    <input id="pac-input" class="controls" type="text" placeholder="Buscar local">
+    <div id="map-canvas"></div>
+  </body>
+</html>
