@@ -180,12 +180,10 @@ function initialize() {
       mapOptions);
 
   var coordInfoWindow = new google.maps.InfoWindow();
-  coordInfoWindow.setContent(createInfoWindowContent());
-  coordInfoWindow.setPosition(centro_inicial);
-  coordInfoWindow.open(map);
+
 
   
-   google.maps.event.addListener(map, 'rightclick', function(event) {
+   google.maps.event.addListener(map, 'dblclick', function(event) {
 		
 	quero_ver = event.latLng;
     coordInfoWindow.setContent(createInfoWindowContent());
@@ -197,13 +195,6 @@ function initialize() {
   
   
   
-/*
-  var defaultBounds = new google.maps.LatLngBounds(
-      new google.maps.LatLng(-22.948409,-43.157537),
-      new google.maps.LatLng(-22.958409,-43.167537));
-  map.fitBounds(defaultBounds);
-*/
-  // Create the search box and link it to the UI element.
   var input = /** @type {HTMLInputElement} */(
       document.getElementById('pac-input'));
   map.controls[google.maps.ControlPosition.TOP_LEFT].push(input);
